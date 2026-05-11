@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Command">
+    <Text>Command myApp</Text>
+    <Description>Some description for myApp</Description>
+    <Assembly>myApp.dll</Assembly>
+    <FullClassName>TemplateRevitCs.Command</FullClassName>
+    <ClientId>cbe7d597-17e1-419c-81f1-2bda958b209b</ClientId>
+    <VendorId>com.typepad.thebuildingcoder</VendorId>
+    <VendorDescription>The Building Coder, http://thebuildingcoder.typepad.com</VendorDescription>
+  </AddIn>
+  <AddIn Type="Application">
+    <Name>Application myApp</Name>
+    <Assembly>myApp.dll</Assembly>
+    <FullClassName>TemplateRevitCs.Command</FullClassName>
+    <ClientId>cbe7d597-17e1-419c-81f1-2bda958b209b</ClientId>
+    <VendorId>com.typepad.thebuildingcoder</VendorId>
+    <VendorDescription>The Building Coder, http://thebuildingcoder.typepad.com</VendorDescription>
+  </AddIn>
+</RevitAddIns>
