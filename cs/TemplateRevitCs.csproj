@@ -8,9 +8,10 @@
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<RootNamespace>myApp</RootNamespace>
 		<AssemblyName>myApp</AssemblyName>
-		<Platforms>AnyCPU;x64</Platforms>
+		<Platforms>x64</Platforms>
 		<SupportedOSPlatformVersion>8.0</SupportedOSPlatformVersion>
 		<PlatformTarget>x64</PlatformTarget>
+		<UseWindowsForms>True</UseWindowsForms>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -36,9 +37,17 @@
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
 		<Exec Command="if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot; copy &quot;$(ProjectDir)*.addin&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot;&#xD;&#xA;if exist &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot; copy &quot;$(ProjectDir)$(OutputPath)*.dll&quot; &quot;$(AppData)\Autodesk\REVIT\Addins\2025&quot;" />
-	</Target>	
+	</Target>
 
 	<ItemGroup>
+	  <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+	  <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+	</ItemGroup>	
+
+	<ItemGroup>
+		<Reference Include="Dinno.Do3d.Database">
+		  <HintPath>..\..\ddworks_shop_designer_B\Workspace\References\Dinno.Do3d.Database.dll</HintPath>
+		</Reference>
 		<Reference Include="RevitAPI">
 			<HintPath>$(ProgramW6432)\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
 		</Reference>

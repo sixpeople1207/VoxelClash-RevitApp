@@ -1,14 +1,17 @@
 ﻿#region Namespaces
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Windows;
-using Autodesk.Revit.ApplicationServices;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.UI;
-using Autodesk.Revit.UI.Selection;
+using DDWorks_Shop_Designer.Database;
+using System.Data;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Linq;
 #endregion
 
 namespace TemplateRevitCs
@@ -20,8 +23,9 @@ namespace TemplateRevitCs
         {
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
-            View view = doc.ActiveView;
+            var view = doc.ActiveView;
 
+         
             double size = UnitUtils.ConvertToInternalUnits(1000.0, UnitTypeId.Millimeters);
 
             // =========================
@@ -120,6 +124,7 @@ namespace TemplateRevitCs
                 tx.Commit();
             }
 
+            OpenDB_Click();
             return Result.Succeeded;
         }
 
@@ -162,6 +167,36 @@ namespace TemplateRevitCs
             return (minA.X <= wb.Max.X && maxA.X >= wb.Min.X) &&
                    (minA.Y <= wb.Max.Y && maxA.Y >= wb.Min.Y) &&
                    (minA.Z <= wb.Max.Z && maxA.Z >= wb.Min.Z);
+        }
+        private void OpenDB_Click()
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.Filter = "Database files (*.db)|*.db|All files (*.*)|*.*";
+            if (openFileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                string dbPath = openFileDialog.FileName;
+
+                DatabaseManager dbManager = new DatabaseManager("D:\\8. 자료\\C5D자료\\sample.db");
+                //var table = dbManager.GetTableNames();
+                //foreach (var t in table)
+                //{
+                //    //Debug.WriteLine("Table Name: " + t);
+                //}
+                DataTable dt = dbManager.ReadToDataTable("GSysSampleProje_Geometries");
+                foreach (DataRow row in dt.Rows)
+                {
+                    var name = row[4];
+                    if (name.ToString().Contains("STARTOBJ 150A_geom"))
+                    {
+                        var data = row[14];
+                        var cmodel = new C5DModel((byte[])row[14]);
+                        var vertext = cmodel.vertexData;
+
+                    }
+
+
+                }
+            }
         }
 
         Dictionary<string, Material> matCache = new Dictionary<string, Material>();
