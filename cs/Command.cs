@@ -12,20 +12,24 @@ using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
+using Dinno.UserManager.Models;
+using System.Windows.Controls;
+using System.Windows.Media.Media3D;
 #endregion
 
 namespace TemplateRevitCs
 {
-  [Transaction(TransactionMode.Manual)]
-  public class Command : IExternalCommand
-  {
+    [Transaction(TransactionMode.Manual)]
+    public class Command : IExternalCommand
+    {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
             var view = doc.ActiveView;
 
-         
+
             double size = UnitUtils.ConvertToInternalUnits(1000.0, UnitTypeId.Millimeters);
 
             // =========================
@@ -124,7 +128,8 @@ namespace TemplateRevitCs
                 tx.Commit();
             }
 
-            OpenDB_Click();
+            var vertext = OpenDB_Click();
+            DrawMeshWithVectorFacesTo3D(doc, vertext);
             return Result.Succeeded;
         }
 
@@ -168,9 +173,10 @@ namespace TemplateRevitCs
                    (minA.Y <= wb.Max.Y && maxA.Y >= wb.Min.Y) &&
                    (minA.Z <= wb.Max.Z && maxA.Z >= wb.Min.Z);
         }
-        private void OpenDB_Click()
+        private List<Vector3> OpenDB_Click()
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
+            C5DModel cmodel = null;
             openFileDialog.Filter = "Database files (*.db)|*.db|All files (*.*)|*.*";
             if (openFileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
@@ -186,39 +192,100 @@ namespace TemplateRevitCs
                 foreach (DataRow row in dt.Rows)
                 {
                     var name = row[4];
-                    if (name.ToString().Contains("STARTOBJ 150A_geom"))
+                    if (name.ToString().Contains("DIAPHRAGM VALVE 1_2__geom"))
                     {
                         var data = row[14];
-                        var cmodel = new C5DModel((byte[])row[14]);
-                        var vertext = cmodel.vertexData;
-
+                        cmodel = new C5DModel((byte[])row[14]);
+                        cmodel.C5DHeader((byte[])row[14]);
                     }
-
-
                 }
+                if (cmodel == null) return null;
             }
+            return cmodel.vertexData;
         }
 
-        Dictionary<string, Material> matCache = new Dictionary<string, Material>();
-
-        Material GetOrCreateMaterial(Document doc, string name)
+        Dictionary<string, Autodesk.Revit.DB.Material> matCache = new Dictionary<string, Autodesk.Revit.DB.Material>();
+        public void DrawMeshWithVectorFacesTo3D(Document uiDoc, List<Vector3> vectorFaces)
         {
-            if (matCache.ContainsKey(name))
-                return matCache[name];
+            // 1. 3D 형상을 지원하는 일반 모델(Generic Models) 카테고리 사용
+            ElementId categoryId = new ElementId(BuiltInCategory.OST_GenericModel);
+            ElementId materialId = ElementId.InvalidElementId; // 기본 재질 사용 (필요시 지정)
 
-            var mat = new FilteredElementCollector(doc)
-                .OfClass(typeof(Material))
-                .Cast<Material>()
-                .FirstOrDefault(m => m.Name == name);
+            TessellatedShapeBuilder builder = new TessellatedShapeBuilder();
 
-            if (mat == null)
+            // 2. 전체 형상을 위한 페이스셋을 루프 외부에서 오픈
+            builder.OpenConnectedFaceSet(true);
+            // 3. 3개의 정점(Vector3)씩 묶어서 하나의 삼각형 면(Face)으로 추가
+            for (int i = 0; i < vectorFaces.Count-2; i += 3)
             {
-                ElementId id = Material.Create(doc, name);
-                mat = doc.GetElement(id) as Material;
+                double x = UnitUtils.ConvertToInternalUnits(vectorFaces[i].X, UnitTypeId.Meters);
+                double y = UnitUtils.ConvertToInternalUnits(vectorFaces[i].Y, UnitTypeId.Meters);
+                double z = UnitUtils.ConvertToInternalUnits(vectorFaces[i].Z, UnitTypeId.Meters);
+                
+                double x2 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+1].X, UnitTypeId.Meters);
+                double y2 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+1].Y, UnitTypeId.Meters);
+                double z2 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+1].Z, UnitTypeId.Meters);
+                
+                double x3 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+2].X, UnitTypeId.Meters);
+                double y3 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+2].Y, UnitTypeId.Meters);
+                double z3 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+2].Z, UnitTypeId.Meters);
+
+                var vertex1 = new XYZ((float)x, (float)y, (float)z);
+                var vertex2 = new XYZ((float)x2, (float)y2, (float)z2);
+                var vertex3 = new XYZ((float)x3, (float)y3, (float)z3);
+
+                //if (x < 1e-6 || y < 1e-6 || z < 1e-6)
+                //    continue;
+                // 데이터 개수가 부족하면 중단
+                if (i + 2 >= vectorFaces.Count) break;
+
+                // Vector3를 Revit의 XYZ 객체로 변환하여 리스트 생성
+                List<XYZ> vertices = new List<XYZ>
+                    {
+                        vertex1,
+                        vertex2,
+                        vertex3
+                    };
+
+                // 루프 안에서는 면만 계속 추가
+                builder.AddFace(new TessellatedFace(vertices, materialId));
             }
 
-            matCache[name] = mat;
-            return mat;
+            // 4. 모든 면 추가가 끝나면 닫고 빌드
+            builder.CloseConnectedFaceSet();
+            builder.Build();
+
+            // 5. 최종 결과물을 DirectShape로 단 한 번만 생성
+            TessellatedShapeBuilderResult result = builder.GetBuildResult();
+
+            // 트랜잭션 안에서 실행되어야 합니다.
+            using (Transaction t = new Transaction(uiDoc, "Create Mesh"))
+            {
+                t.Start();
+                DirectShape ds = DirectShape.CreateElement(uiDoc, categoryId);
+                ds.SetShape(result.GetGeometricalObjects());
+                t.Commit();
+            }
+
+            Autodesk.Revit.DB.Material GetOrCreateMaterial(Document doc, string name)
+            {
+                if (matCache.ContainsKey(name))
+                    return matCache[name];
+
+                var mat = new FilteredElementCollector(doc)
+                    .OfClass(typeof(Autodesk.Revit.DB.Material))
+                    .Cast<Autodesk.Revit.DB.Material>()
+                    .FirstOrDefault(m => m.Name == name);
+
+                if (mat == null)
+                {
+                    ElementId id = Autodesk.Revit.DB.Material.Create(doc, name);
+                    mat = doc.GetElement(id) as Autodesk.Revit.DB.Material;
+                }
+
+                matCache[name] = mat;
+                return mat;
+            }
         }
     }
-}
+    }
