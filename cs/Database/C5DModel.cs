@@ -11,7 +11,7 @@ namespace DDWorks_Shop_Designer.Database
     internal class C5DModel
     {
         public List<Vector3> vertexData { get; }
-        public C5DModel(byte[] data)
+        public C5DModel(byte[] data, int shift=0)
         {
             var ms = new MemoryStream(data);
             var br = new BinaryReader(ms);
@@ -24,10 +24,20 @@ namespace DDWorks_Shop_Designer.Database
             int version = br.ReadInt32();
             int flags = br.ReadInt32();
             int size = br.ReadInt32()*4; //4바이트
+            //for(int i=0; i<shift; i++)
+            //{
+            //    var shiftByte = br.ReadBytes(1);
+            //}
+            long startPos = br.BaseStream.Position;
+            // 읽기
+            var material= br.ReadBytes(size);
+            var materialal = br.ReadBytes(24);
+            // 다시 원복
+            br.BaseStream.Position = startPos;
             int count = 0;
 
             vertexData = new List<Vector3>();
-            int scale = 1000;
+            int scale = 100000;
             // 4바이트 씩이니까. size는 한번 읽는개수의 Size라 * 4 해야 Position과 동일해짐(Positon도 바이트)
             while (br.BaseStream.Position < size &&
                 br.BaseStream.Position < br.BaseStream.Length) { 
@@ -37,11 +47,14 @@ namespace DDWorks_Shop_Designer.Database
                 float vnx = br.ReadSingle();
                 float vny = br.ReadSingle();
                 float vnz = br.ReadSingle();
-                float vtx = br.ReadSingle();
-                float vty = br.ReadSingle();
-               // vertexData.Add(new Vector3(vx* scale, vy* scale, vz * scale));
+                if (shift == 99)
+                {
+                    float vtx = br.ReadSingle();
+                    float vty = br.ReadSingle();
+                }
+                vertexData.Add(new Vector3(vx* scale, vy* scale, vz * scale));
             count += 1;
-           // Debug.WriteLine($"vx:{vx} vy:{vy} vz:{vz}/vnx:{0} vny:{0} vnz:{0}/vtx:{0} vty:{0}");
+            Debug.WriteLine($"vx:{vx} vy:{vy} vz:{vz}/vnx:{0} vny:{0} vnz:{0}/vtx:{0} vty:{0}");
 
             }
             Debug.WriteLine($"{count}");

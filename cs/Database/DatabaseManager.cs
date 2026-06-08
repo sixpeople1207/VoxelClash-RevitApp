@@ -59,6 +59,21 @@ namespace DDWorks_Shop_Designer.Database
 
             return dt;
         }
+        public string[] GetTableNames()
+        {
+            List<string> tableNames = new List<string>();
+            using (var cmd = new SqliteCommand("SELECT name FROM sqlite_master WHERE type='table'", conn))
+            {
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        tableNames.Add(reader.GetString(0));
+                    }
+                }
+            }
+            return tableNames.ToArray();
+        }
     }
 
 }

@@ -16,6 +16,10 @@ using System.Numerics;
 using Dinno.UserManager.Models;
 using System.Windows.Controls;
 using System.Windows.Media.Media3D;
+using myApp;
+using myApp.UI;
+using myApp.Drawing;
+using myApp.Database;
 #endregion
 
 namespace TemplateRevitCs
@@ -23,13 +27,13 @@ namespace TemplateRevitCs
     [Transaction(TransactionMode.Manual)]
     public class Command : IExternalCommand
     {
+        UIDbInformation ui = null;
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Document doc = uidoc.Document;
             var view = doc.ActiveView;
-
-
+            Init(uidoc);
             double size = UnitUtils.ConvertToInternalUnits(1000.0, UnitTypeId.Millimeters);
 
             // =========================
@@ -128,8 +132,8 @@ namespace TemplateRevitCs
                 tx.Commit();
             }
 
-            var vertext = OpenDB_Click();
-            DrawMeshWithVectorFacesTo3D(doc, vertext);
+            //var vertext = OpenDB_Click();
+            //DrawMeshWithVectorFacesTo3D(doc, vertext);
             return Result.Succeeded;
         }
 
@@ -188,6 +192,8 @@ namespace TemplateRevitCs
                 //{
                 //    //Debug.WriteLine("Table Name: " + t);
                 //}
+
+
                 DataTable dt = dbManager.ReadToDataTable("GSysSampleProje_Geometries");
                 foreach (DataRow row in dt.Rows)
                 {
@@ -195,8 +201,8 @@ namespace TemplateRevitCs
                     if (name.ToString().Contains("DIAPHRAGM VALVE 1_2__geom"))
                     {
                         var data = row[14];
-                        cmodel = new C5DModel((byte[])row[14]);
-                        cmodel.C5DHeader((byte[])row[14]);
+                        cmodel = new C5DModel((byte[])row[14],0);
+                       // cmodel.C5DHeader((byte[])row[14]);
                     }
                 }
                 if (cmodel == null) return null;
@@ -204,88 +210,17 @@ namespace TemplateRevitCs
             return cmodel.vertexData;
         }
 
-        Dictionary<string, Autodesk.Revit.DB.Material> matCache = new Dictionary<string, Autodesk.Revit.DB.Material>();
-        public void DrawMeshWithVectorFacesTo3D(Document uiDoc, List<Vector3> vectorFaces)
+        private void Init(UIDocument uiDoc)
         {
-            // 1. 3D 형상을 지원하는 일반 모델(Generic Models) 카테고리 사용
-            ElementId categoryId = new ElementId(BuiltInCategory.OST_GenericModel);
-            ElementId materialId = ElementId.InvalidElementId; // 기본 재질 사용 (필요시 지정)
-
-            TessellatedShapeBuilder builder = new TessellatedShapeBuilder();
-
-            // 2. 전체 형상을 위한 페이스셋을 루프 외부에서 오픈
-            builder.OpenConnectedFaceSet(true);
-            // 3. 3개의 정점(Vector3)씩 묶어서 하나의 삼각형 면(Face)으로 추가
-            for (int i = 0; i < vectorFaces.Count-2; i += 3)
-            {
-                double x = UnitUtils.ConvertToInternalUnits(vectorFaces[i].X, UnitTypeId.Meters);
-                double y = UnitUtils.ConvertToInternalUnits(vectorFaces[i].Y, UnitTypeId.Meters);
-                double z = UnitUtils.ConvertToInternalUnits(vectorFaces[i].Z, UnitTypeId.Meters);
-                
-                double x2 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+1].X, UnitTypeId.Meters);
-                double y2 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+1].Y, UnitTypeId.Meters);
-                double z2 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+1].Z, UnitTypeId.Meters);
-                
-                double x3 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+2].X, UnitTypeId.Meters);
-                double y3 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+2].Y, UnitTypeId.Meters);
-                double z3 = UnitUtils.ConvertToInternalUnits(vectorFaces[i+2].Z, UnitTypeId.Meters);
-
-                var vertex1 = new XYZ((float)x, (float)y, (float)z);
-                var vertex2 = new XYZ((float)x2, (float)y2, (float)z2);
-                var vertex3 = new XYZ((float)x3, (float)y3, (float)z3);
-
-                //if (x < 1e-6 || y < 1e-6 || z < 1e-6)
-                //    continue;
-                // 데이터 개수가 부족하면 중단
-                if (i + 2 >= vectorFaces.Count) break;
-
-                // Vector3를 Revit의 XYZ 객체로 변환하여 리스트 생성
-                List<XYZ> vertices = new List<XYZ>
-                    {
-                        vertex1,
-                        vertex2,
-                        vertex3
-                    };
-
-                // 루프 안에서는 면만 계속 추가
-                builder.AddFace(new TessellatedFace(vertices, materialId));
-            }
-
-            // 4. 모든 면 추가가 끝나면 닫고 빌드
-            builder.CloseConnectedFaceSet();
-            builder.Build();
-
-            // 5. 최종 결과물을 DirectShape로 단 한 번만 생성
-            TessellatedShapeBuilderResult result = builder.GetBuildResult();
-
-            // 트랜잭션 안에서 실행되어야 합니다.
-            using (Transaction t = new Transaction(uiDoc, "Create Mesh"))
-            {
-                t.Start();
-                DirectShape ds = DirectShape.CreateElement(uiDoc, categoryId);
-                ds.SetShape(result.GetGeometricalObjects());
-                t.Commit();
-            }
-
-            Autodesk.Revit.DB.Material GetOrCreateMaterial(Document doc, string name)
-            {
-                if (matCache.ContainsKey(name))
-                    return matCache[name];
-
-                var mat = new FilteredElementCollector(doc)
-                    .OfClass(typeof(Autodesk.Revit.DB.Material))
-                    .Cast<Autodesk.Revit.DB.Material>()
-                    .FirstOrDefault(m => m.Name == name);
-
-                if (mat == null)
-                {
-                    ElementId id = Autodesk.Revit.DB.Material.Create(doc, name);
-                    mat = doc.GetElement(id) as Autodesk.Revit.DB.Material;
-                }
-
-                matCache[name] = mat;
-                return mat;
-            }
+            // 초기화 작업 (예: UI 설정, 데이터 로드 등)
+            ui = new UIDbInformation(uiDoc);
+            ui.textBoxShift.Text = "3";
+            ui.textBoxDBPath.Text = "D:\\8. 자료\\C5D자료\\sample.db";
+           // ui.textBoxName.Text = "DIAPHRAGM VALVE 1_2__geom";
+            ui.ShowDialog();
         }
+        Dictionary<string, Autodesk.Revit.DB.Material> matCache = new Dictionary<string, Autodesk.Revit.DB.Material>();
+
+
     }
-    }
+}
