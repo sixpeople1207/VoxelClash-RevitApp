@@ -214,7 +214,7 @@ namespace TemplateRevitCs
         {
             // 초기화 작업 (예: UI 설정, 데이터 로드 등)
             ui = new UIDbInformation(uiDoc);
-            ui.textBoxShift.Text = "3";
+            ui.textBoxShift.Text = "0";
             ui.textBoxDBPath.Text = "D:\\8. 자료\\C5D자료\\sample.db";
            // ui.textBoxName.Text = "DIAPHRAGM VALVE 1_2__geom";
             ui.ShowDialog();

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Autodesk.Revit.DB.Electrical;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -11,56 +12,68 @@ namespace DDWorks_Shop_Designer.Database
     internal class C5DModel
     {
         public List<Vector3> vertexData { get; }
+        public int modelType { get; }
         public C5DModel(byte[] data, int shift=0)
         {
             var ms = new MemoryStream(data);
             var br = new BinaryReader(ms);
-
             // ---------------------------
             // 1. HEADER 읽기 (예: 4개 int)
             // ---------------------------
             byte[] d = br.ReadBytes(1);
-            int type = br.ReadInt32();
+            int type = br.ReadInt32() >> 24;
             int version = br.ReadInt32();
             int flags = br.ReadInt32();
             int size = br.ReadInt32()*4; //4바이트
-            //for(int i=0; i<shift; i++)
-            //{
-            //    var shiftByte = br.ReadBytes(1);
-            //}
+            var material = 0;
             long startPos = br.BaseStream.Position;
+            int face = 72;//face한개를 보려면 72byte를 읽어 들여야함. vtx가 없을때
             // 읽기
-            var material= br.ReadBytes(size);
-            var materialal = br.ReadBytes(24);
+            var geoBoby = br.ReadBytes(size);
+            if(br.BaseStream.Position < br.BaseStream.Length-8)
+            {
+                //var extraData = br.ReadBytes((int)(br.BaseStream.Length - br.BaseStream.Position));
+                //Debug.WriteLine($"Extra Data Length: {extraData.Length}");
+                material = br.ReadInt32(); // 예: 65536 은 FFFF임.
+                modelType = br.ReadInt32(); // 예: 65536 은 FFFF임.
+            }
             // 다시 원복
             br.BaseStream.Position = startPos;
             int count = 0;
 
             vertexData = new List<Vector3>();
-            int scale = 100000;
+            int scale = 1000;
+            // br.ReadBytes(shift);
+            //br.BaseStream.Position -= 8;
             // 4바이트 씩이니까. size는 한번 읽는개수의 Size라 * 4 해야 Position과 동일해짐(Positon도 바이트)
-            while (br.BaseStream.Position < size &&
-                br.BaseStream.Position < br.BaseStream.Length) { 
-                float vx = br.ReadSingle();
-                float vy = br.ReadSingle();
-                float vz = br.ReadSingle();
-                float vnx = br.ReadSingle();
-                float vny = br.ReadSingle();
-                float vnz = br.ReadSingle();
-                if (shift == 99)
+            int beforSize = size;
+            for (int i = 0; i < type; i++)
+            {
+                while (br.BaseStream.Position < size + 1 &&
+                    br.BaseStream.Position < br.BaseStream.Length)
                 {
-                    float vtx = br.ReadSingle();
-                    float vty = br.ReadSingle();
-                }
-                vertexData.Add(new Vector3(vx* scale, vy* scale, vz * scale));
-            count += 1;
-            Debug.WriteLine($"vx:{vx} vy:{vy} vz:{vz}/vnx:{0} vny:{0} vnz:{0}/vtx:{0} vty:{0}");
+                    float vx = br.ReadSingle();
+                    float vy = br.ReadSingle();
+                    float vz = br.ReadSingle();
+                    float vnx = br.ReadSingle();
+                    float vny = br.ReadSingle();
+                    float vnz = br.ReadSingle();
+                    if (modelType == 3 || shift == 1)
+                    {
+                        float vtx = br.ReadSingle();
+                        float vty = br.ReadSingle();
+                    }
+                    vertexData.Add(new Vector3(vx * scale, vy * scale, vz * scale));
+                    count += 1;
+                    Debug.WriteLine($"vx:{vx} vy:{vy} vz:{vz}/vnx:{0} vny:{0} vnz:{0}/vtx:{0} vty:{0}");
 
+                }
+                size += beforSize;
             }
             Debug.WriteLine($"{count}");
-            //while (br.BaseStream.Position < br.BaseStream.Length)
+            //while (br.BaseStream.Position < br.BaseStream.Length-16)
             //{
-            //    byte[] extraData = br.ReadBytes(16); // 예: 16바이트 추가 데이터
+            //    byte[] extraData = br.ReadString(); // 예: 16바이트 추가 데이터
             //    Debug.WriteLine($"{extraData[0]}");
             //}
         }

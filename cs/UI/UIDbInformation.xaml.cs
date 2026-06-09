@@ -96,9 +96,13 @@ namespace myApp.UI
                     modelVertex = cmodel.vertexData;
                     Modeling modeling = new Modeling();
                     modeling.DrawMeshWithVectorFacesTo3D(doc, modelVertex);
+                        
+                    textBoxLog.AppendText($"Model Type :{cmodel.modelType}\n");
                     foreach(var v in modelVertex)
                     {
-                        textBoxLog.AppendText($"vx:{v.X} vy:{v.Y} vz:{v.Z}");
+                        textBoxLog.AppendText($"vx:{v.X} vy:{v.Y} vz:{v.Z}\n");
+
+                        break;
                     }
                    // textBoxLog.AppendText($"모델 {modelName}이(가) 성공적으로 생성되었습니다.\n");
                 }
